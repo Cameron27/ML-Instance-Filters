@@ -1,13 +1,12 @@
 package weka.filters.unsupervised.instance;
 
-import weka.core.Attribute;
-import weka.core.Instances;
-import weka.core.OptionMetadata;
+import weka.core.*;
+import weka.filters.SimpleBatchFilter;
 
 import java.util.ArrayList;
 import java.util.Random;
 
-public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.Randomizable {
+public class Mixup extends SimpleBatchFilter implements Randomizable {
     /**
      * Seed for random number generation.
      */
@@ -53,7 +52,44 @@ public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.R
      */
     @Override
     protected Instances process(Instances instances) {
-        return null;
+        // return the instances if not training instances
+        if (isFirstBatchDone())
+            return instances;
+
+
+        Random rnd = new Random(m_seed);
+        int numInput = instances.numInstances();
+        int numOutput = (int) (numInput * m_numSamples);
+        Instances output = getOutputFormat();
+
+        // for number of expected outputs
+        for (int i = 0; i < numOutput; i++) {
+            // create feature array
+            double[] features1 = new double[output.numAttributes()];
+            double[] features2 = new double[output.numAttributes()];
+
+            double[] sample1 = instances.get(rnd.nextInt(numInput)).toDoubleArray();
+            double[] sample2 = instances.get(rnd.nextInt(numInput)).toDoubleArray();
+            double weight = sampleBetaDistribution(m_alpha, rnd);
+
+            // combine features
+            for (int j = 0; j < output.numAttributes(); j++) {
+                // skip class index
+                if (j == output.classIndex())
+                    continue;
+
+                features1[j] = sample1[j] * weight + sample2[j] * (1 - weight);
+                features2[j] = sample1[j] * weight + sample2[j] * (1 - weight);
+            }
+
+            features1[output.classIndex()] = sample1[output.classIndex()];
+            output.add(new DenseInstance(weight, features1));
+
+            features2[output.classIndex()] = sample2[output.classIndex()];
+            output.add(new DenseInstance(1 - weight, features2));
+        }
+
+        return output;
     }
 
     /**
@@ -93,12 +129,12 @@ public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.R
         double d = a - 1.0 / 3.0;
         double c = 1.0 / Math.sqrt(9 * d);
 
-        // keep generating till something works
+        // keep generating x and u until they work
         while (true) {
             double x = rnd.nextGaussian();
+            double u = rnd.nextDouble();
             double v = Math.pow(1.0 + c * x, 3);
-            double uniform = rnd.nextDouble();
-            if (v > 0 && Math.log(uniform) < 0.5 * x * x + d - d * v + d * Math.log(v))
+            if (v > 0 && Math.log(u) < 0.5 * x * x + d - d * v + d * Math.log(v))
                 return d * v * Math.pow(rnd.nextDouble(), 1 / alpha);
         }
 
