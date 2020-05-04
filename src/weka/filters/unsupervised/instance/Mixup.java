@@ -1,7 +1,10 @@
 package weka.filters.unsupervised.instance;
 
+import weka.core.Attribute;
 import weka.core.Instances;
 import weka.core.OptionMetadata;
+
+import java.util.ArrayList;
 
 public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.Randomizable {
     /**
@@ -28,7 +31,17 @@ public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.R
      */
     @Override
     protected Instances determineOutputFormat(Instances instances) {
-        return null;
+        // create attribute list
+        ArrayList<Attribute> attributes = new ArrayList<>(instances.numAttributes());
+        // copy attributes from input
+        for (int i = 0; i < instances.numAttributes(); i++) {
+            attributes.add(instances.attribute(i));
+        }
+
+        // create and return output
+        Instances output = new Instances("features", attributes, 0);
+        output.setClassIndex(output.numAttributes() - 1);
+        return output;
     }
 
     /**
