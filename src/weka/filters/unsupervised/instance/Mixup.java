@@ -5,6 +5,7 @@ import weka.core.Instances;
 import weka.core.OptionMetadata;
 
 import java.util.ArrayList;
+import java.util.Random;
 
 public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.Randomizable {
     /**
@@ -53,6 +54,54 @@ public class Mixup extends weka.filters.SimpleBatchFilter implements weka.core.R
     @Override
     protected Instances process(Instances instances) {
         return null;
+    }
+
+    /**
+     * Randomly sample a beta distribution with bot parameters as <code>alpha</code>.
+     *
+     * @param alpha alpha parameter for beta distribution, must be >0 and <=1
+     * @param rnd   random object to use
+     * @return a value samples from a beta distribution
+     */
+    protected static double sampleBetaDistribution(double alpha, Random rnd) {
+        if (alpha > 1 || alpha <= 0)
+            throw new IllegalArgumentException("alpha parameter must be >0 and <=1");
+
+        // make two gamma sample
+        double x = sampleGammaDistribution(alpha, rnd);
+        double y = sampleGammaDistribution(alpha, rnd);
+
+        // calculate beta
+        return x / (x + y);
+    }
+
+    /**
+     * Randomly sample a gamma distribution with parameter <code>alpha</code>.
+     *
+     * @param alpha alpha parameter for gamma distribution, must be >0 and <=1
+     * @param rnd   random object to use
+     * @return a value samples from a gamma distribution
+     */
+    protected static double sampleGammaDistribution(double alpha, Random rnd) {
+        if (alpha > 1 || alpha <= 0)
+            throw new IllegalArgumentException("alpha parameter must be >0 and <=1");
+
+        // going to calculate based on alpha + 1 for faster results
+        double a = alpha + 1;
+
+        // setup
+        double d = a - 1.0 / 3.0;
+        double c = 1.0 / Math.sqrt(9 * d);
+
+        // keep generating till something works
+        while (true) {
+            double x = rnd.nextGaussian();
+            double v = Math.pow(1.0 + c * x, 3);
+            double uniform = rnd.nextDouble();
+            if (v > 0 && Math.log(uniform) < 0.5 * x * x + d - d * v + d * Math.log(v))
+                return d * v * Math.pow(rnd.nextDouble(), 1 / alpha);
+        }
+
     }
 
     @Override
