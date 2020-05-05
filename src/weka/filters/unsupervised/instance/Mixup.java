@@ -93,51 +93,38 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
     }
 
     /**
-     * Randomly sample a beta distribution with bot parameters as <code>alpha</code>.
+     * Randomly sample a beta distribution with bot parameters as <code>alpha</code>.<br>
+     * Source: R. C. H. Cheng. 1978. Generating beta variates with nonintegral shape parameters. Commun. ACM 21, 4 (April 1978), 317–322. DOI:https://doi.org/10.1145/359460.359482
      *
      * @param alpha alpha parameter for beta distribution, must be >0 and <=1
      * @param rnd   random object to use
      * @return a value samples from a beta distribution
      */
     protected static double sampleBetaDistribution(double alpha, Random rnd) {
-        if (alpha > 1 || alpha <= 0)
-            throw new IllegalArgumentException("alpha parameter must be >0 and <=1");
+        double a = alpha + alpha;
+        double beta;
+        if (alpha < 1)
+            beta = 1 / alpha;
+        else
+            beta = Math.sqrt((a - 2) / (2 / (alpha * alpha) - a));
+        double gamma = alpha + 1 / beta;
 
-        // make two gamma sample
-        double x = sampleGammaDistribution(alpha, rnd);
-        double y = sampleGammaDistribution(alpha, rnd);
-
-        // calculate beta
-        return x / (x + y);
-    }
-
-    /**
-     * Randomly sample a gamma distribution with parameter <code>alpha</code>.
-     *
-     * @param alpha alpha parameter for gamma distribution, must be >0 and <=1
-     * @param rnd   random object to use
-     * @return a value samples from a gamma distribution
-     */
-    protected static double sampleGammaDistribution(double alpha, Random rnd) {
-        if (alpha > 1 || alpha <= 0)
-            throw new IllegalArgumentException("alpha parameter must be >0 and <=1");
-
-        // going to calculate based on alpha + 1 for faster results
-        double a = alpha + 1;
-
-        // setup
-        double d = a - 1.0 / 3.0;
-        double c = 1.0 / Math.sqrt(9 * d);
-
-        // keep generating x and u until they work
+        double u1;
+        double u2;
+        double w;
+        double v;
         while (true) {
-            double x = rnd.nextGaussian();
-            double u = rnd.nextDouble();
-            double v = Math.pow(1.0 + c * x, 3);
-            if (v > 0 && Math.log(u) < 0.5 * x * x + d - d * v + d * Math.log(v))
-                return d * v * Math.pow(rnd.nextDouble(), 1 / alpha);
+            u1 = rnd.nextDouble();
+            u2 = rnd.nextDouble();
+            v = beta * Math.log(u1 / (1 - u1));
+            w = alpha * Math.exp(v);
+
+            double tmp = Math.log(a / (alpha + w));
+            if (a * tmp + (gamma * v) - 1.3862944 >= Math.log(u1 * u1 * u2))
+                break;
         }
 
+        return w / (alpha + w);
     }
 
     @Override
