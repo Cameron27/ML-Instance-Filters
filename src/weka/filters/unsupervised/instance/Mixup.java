@@ -56,7 +56,6 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
         if (isFirstBatchDone())
             return instances;
 
-
         Random rnd = new Random(m_seed);
         int numInput = instances.numInstances();
         int numOutput = (int) (numInput * m_numSamples);

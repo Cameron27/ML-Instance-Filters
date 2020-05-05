@@ -1,12 +1,12 @@
 package weka.filters.unsupervised.instance;
 
-import weka.core.Attribute;
-import weka.core.Instances;
-import weka.core.OptionMetadata;
-import weka.core.Randomizable;
+import weka.core.*;
 import weka.filters.SimpleBatchFilter;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 
 public class Smear extends SimpleBatchFilter implements Randomizable {
     /**
@@ -54,7 +54,75 @@ public class Smear extends SimpleBatchFilter implements Randomizable {
      */
     @Override
     protected Instances process(Instances instances) {
-        return null;
+        // return the instances if not training instances
+        if (isFirstBatchDone())
+            return instances;
+
+        Random rnd = new Random(m_seed);
+        int numInput = instances.numInstances();
+        int numOutput = (int) (numInput * m_numSamples);
+        Instances output = getOutputFormat();
+
+        // get attribute multipliers
+        final int k = 10;
+        double[] attributeMultipliers = new double[instances.numAttributes()];
+        // for each attribute
+        for (int i = 0; i < instances.numAttributes(); i++) {
+            // skip class index
+            if (i == output.classIndex())
+                continue;
+
+            double[] valuesForAttribute = instances.attributeToDoubleArray(0);
+
+            // sort
+            Arrays.sort(valuesForAttribute);
+
+            // calculate difference between adjacent values
+            List<Double> diffs = new ArrayList();
+            for (int j = 0; j < valuesForAttribute.length - 1; j++) {
+                double diff = valuesForAttribute[j + 1] - valuesForAttribute[j];
+                // ignore 0s
+                if (diff != 0)
+                    diffs.add(diff);
+            }
+
+            // sort
+            diffs.sort(Double::compareTo);
+
+            // take kth smallest
+            if (diffs.size() > k)
+                attributeMultipliers[i] = diffs.get(k - 1);
+                // if not k values, take largest
+            else if (diffs.size() != 0)
+                attributeMultipliers[i] = diffs.get(diffs.size() - 1);
+                // if no values, make 0
+            else
+                attributeMultipliers[i] = 0;
+        }
+
+        // for number of expected outputs
+        for (int i = 0; i < numOutput; i++) {
+            // create feature array
+            double[] features = new double[output.numAttributes()];
+
+            double[] sample = instances.get(rnd.nextInt(numInput)).toDoubleArray();
+
+            // jitter features
+            for (int j = 0; j < output.numAttributes(); j++) {
+                // skip class index
+                if (j == output.classIndex())
+                    continue;
+
+                double jitter = rnd.nextGaussian() * m_stdDev * attributeMultipliers[j];
+
+                features[j] = sample[j] + jitter;
+            }
+
+            features[output.classIndex()] = sample[output.classIndex()];
+            output.add(new DenseInstance(1, features));
+        }
+
+        return output;
     }
 
     @Override
@@ -107,6 +175,6 @@ public class Smear extends SimpleBatchFilter implements Randomizable {
     }
 
     public static void main(String[] args) {
-        runFilter(new Mixup(), args);
+        runFilter(new Smear(), args);
     }
 }
