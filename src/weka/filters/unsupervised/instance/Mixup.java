@@ -61,14 +61,16 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
         int numOutput = (int) (numInput * m_numSamples);
         Instances output = getOutputFormat();
 
+        RandomInstanceSampler sampler = new RandomInstanceSampler(instances, rnd);
         // for number of expected outputs
         for (int i = 0; i < numOutput; i++) {
             // create feature array
             double[] features1 = new double[output.numAttributes()];
             double[] features2 = new double[output.numAttributes()];
 
-            double[] sample1 = instances.get(rnd.nextInt(numInput)).toDoubleArray();
-            double[] sample2 = instances.get(rnd.nextInt(numInput)).toDoubleArray();
+            double[][] sample1And2 = sampler.getRandomInstances();
+            double[] sample1 = sample1And2[0];
+            double[] sample2 = sample1And2[1];
             double weight = sampleBetaDistribution(m_alpha, rnd);
 
             // combine features
@@ -77,13 +79,14 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
                 if (j == output.classIndex())
                     continue;
 
+                // weighted average of samples
                 features1[j] = sample1[j] * weight + sample2[j] * (1 - weight);
-                features2[j] = sample1[j] * weight + sample2[j] * (1 - weight);
+                features2[j] = features1[j];
             }
 
+            // add features to output with weighting
             features1[output.classIndex()] = sample1[output.classIndex()];
             output.add(new DenseInstance(weight, features1));
-
             features2[output.classIndex()] = sample2[output.classIndex()];
             output.add(new DenseInstance(1 - weight, features2));
         }
@@ -101,12 +104,12 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
      */
     protected static double sampleBetaDistribution(double alpha, Random rnd) {
         double a = alpha + alpha;
-        double beta;
+        double b;
         if (alpha < 1)
-            beta = 1 / alpha;
+            b = 1 / alpha;
         else
-            beta = Math.sqrt((a - 2) / (2 / (alpha * alpha) - a));
-        double gamma = alpha + 1 / beta;
+            b = Math.sqrt((a - 2) / (2 * alpha * alpha - a));
+        double c = alpha + 1 / b;
 
         double u1;
         double u2;
@@ -115,11 +118,11 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
         while (true) {
             u1 = rnd.nextDouble();
             u2 = rnd.nextDouble();
-            v = beta * Math.log(u1 / (1 - u1));
+            v = b * Math.log(u1 / (1 - u1));
             w = alpha * Math.exp(v);
 
             double tmp = Math.log(a / (alpha + w));
-            if (a * tmp + (gamma * v) - 1.3862944 >= Math.log(u1 * u1 * u2))
+            if (a * tmp + (c * v) - 1.3862944 >= Math.log(u1 * u1 * u2))
                 break;
         }
 
@@ -177,5 +180,39 @@ public class Mixup extends SimpleBatchFilter implements Randomizable {
 
     public static void main(String[] args) {
         runFilter(new Mixup(), args);
+    }
+
+    private static class RandomInstanceSampler {
+        private final double[][] instances;
+        private final Random rnd;
+        private int remaining = 0;
+
+        private RandomInstanceSampler(Instances instances, Random rnd) {
+            this.instances = new double[instances.numInstances()][];
+            for (int i = 0; i < this.instances.length; i++) {
+                this.instances[i] = instances.get(i).toDoubleArray();
+            }
+            this.rnd = rnd;
+        }
+
+        private double[][] getRandomInstances() {
+            if (remaining <= 1) {
+                shuffle();
+                remaining = instances.length;
+            }
+
+            remaining -= 2;
+            return new double[][]{instances[remaining], instances[remaining + 1]};
+        }
+
+        private void shuffle() {
+            for (int i = instances.length - 1; i > 0; i--) {
+                int index = rnd.nextInt(i + 1);
+                // Simple swap
+                double[] a = instances[index];
+                instances[index] = instances[i];
+                instances[i] = a;
+            }
+        }
     }
 }
