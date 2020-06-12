@@ -84,9 +84,10 @@ public class Smear extends SimpleBatchFilter implements Randomizable {
                 if (j == output.classIndex())
                     continue;
 
-                double jitter = rnd.nextGaussian() * m_stdDev * attributeMultipliers[j];
+                // calculate noise
+                double noise = rnd.nextGaussian() * m_stdDev * attributeMultipliers[j];
 
-                features[j] = sample[j] + jitter;
+                features[j] = sample[j] + noise;
             }
 
             features[output.classIndex()] = sample[output.classIndex()];
@@ -96,6 +97,12 @@ public class Smear extends SimpleBatchFilter implements Randomizable {
         return output;
     }
 
+    /**
+     * Calculate the multipliers for each attribute.
+     *
+     * @param instances instances to calculate multipliers with
+     * @return array with multiplier for each attribute
+     */
     private double[] calculateAttributeMultipliers(Instances instances) {
         double[] attributeMultipliers = new double[instances.numAttributes()];
         // for each attribute
