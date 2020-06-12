@@ -1,0 +1,112 @@
+\documentclass{article}
+
+\usepackage{makecell}
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\begin{document}
+
+\title{Assignment 2}
+\author{Cameron Salisbury}
+
+\maketitle
+
+\section{Introduction}
+
+This report describes the implementation of two algorithms which can be used to modify training data before being used in the base learner. The two methods implemented are input smearing~\cite{smear} and mixup~\cite{mixup}. Both were implemented as filters for the WEKA API~\cite{weka} and can be used to preprocess the data being used in classification problems. Experiments were the performed where these two algorithms were used as replacements for the bagging process used in random forests~\cite{forest}.
+
+\section{Input Smearing}
+
+The input smearing implementation is based on the algorithm described in the paper~\cite{smear}. The algorithm creates a new dataset with virtual training examples by sampling from the original training data and adding random noise to that data. In order to apply the random noise to each attribute, the algorithm begins by calculating a multiplier for each attribute, $m_a$. This $m_a$ is obtained by sorting all the values for the attribute and calculating the difference between consecutive values (ignoring any differences of 0). $m_a$ is then set as the $k$th smallest gap where $k = min(10, \left|G\right| / 2)$ and $G$ is the set of non-zero gaps. In the event $\left|G\right| = 1$, $m_a$ is set to 1. This method of obtaining $m_a$ differs from the method described in the original paper where instead the standard deviation for the attribute is used.
+
+\paragraph*{}
+
+Next, the algorithm generates a number of virtual training examples equal to the number of instances in the training data multiplied by some user specified parameter. To generate each virtual training example a random instance, $x$, is sampled from training data, with each instance needing to be sampled once before any instance can be resampled. This differs from the original paper which samples with replacement. A virtual training example $x'$ is then created where:
+\[
+x'_a = x_a + m_a \times N(0,\sigma)
+\]
+where $\sigma$ is a user specified value.
+
+\section{Mixup}
+
+The mixup implementation is based on the algorithm described in the paper~\cite{mixup}. The algorithm creates a a new dataset with virtual training examples by taking the weighted average of pairs of instances. The algorithm generates a number of virtual training examples equal to the number of instances in the training data multiplied by some user specified parameter. To generate each virtual training example two instances, $x_1$ and $x_2$, are sampled from the original training data with each instance needing to be sampled once before any instance can be resampled. A virtual training example $x'$ is then created where:
+\[
+x' = \lambda \times x_1 + (1- \lambda) \times x_2, \; \lambda \in [0,1]
+\]
+In the original paper one-hot label encodings are used to interpolate the class labels. This algorithm uses a different approach by instead creating two copies of $x'$, one with the class label of $x_1$ and the other with the class label of $x_2$, and then giving a weighting to the instances of $\lambda$ and $(1 - \lambda)$ respectively.
+
+\paragraph{}
+
+The $\lambda \in [0,1]$ that is used as the weighting to combine $x_1$ and $x_2$ is sampled from a beta distribution, $\mathrm{Beta}(\alpha, \alpha)$, where $\alpha$ is a user specified parameter. This beta distribution is symmetrical about the point 0.5 and if an $\alpha < 1$ is used the values sampled will be weighted towards 0 and 1 whereas $\alpha > 1$ will give values weighted towards 0.5. To sample a beta distribution the algorithm described in the paper~\cite{beta} is used.
+
+\section{Experimental Results}
+
+Random forests are classifiers that use a combination of bagging and randomised decision trees to create an ensemble of decision trees~\cite{forest}. In order to test the performance of input smearing and mixup experiments were run to compare classification performance when replacing the bagging process in random forests with either input smearing or mixup. The experiments were run on 27 datasets with 10 repetitions of 10 fold cross-validation and sample size multipliers of 1, 2 and 3 for the input smearing and mixup algorithms. A $\sigma$ value of 0.05 was used standard deviation in the input smearing algorithm and an $\alpha$ value of 0.05 was used for the beta distribution in the mixup algorithm. To check if there was a significant difference between a given result and the result produced from using bagging, a corrected paired t-test was used. The results of these tests are shown in Table~\ref{compare}.
+
+\begin{table}[thb]
+\footnotesize
+{\centering \begin{tabular}{lrr@{\hspace{0.1cm}}cr@{\hspace{0.1cm}}cr@{\hspace{0.1cm}}cr@{\hspace{0.1cm}}cr@{\hspace{0.1cm}}cr@{\hspace{0.1cm}}c}
+\\
+\hline
+Dataset & Bagging & \makecell{Smear \\ x1} & & \makecell{Smear \\ x2} & & \makecell{Smear \\ x3} & & \makecell{Mixup \\ x1} & & \makecell{Mixup \\ x2} & & \makecell{Mixup \\ x3} & \\
+\hline
+balance-scale & 81.48 & 84.17 &   $\circ$ & 81.32 &           & 80.23 &          & 84.07 &   $\circ$ & 81.67 &          & 80.78 &         \\
+breast-w & 96.57 & 96.01 &           & 95.97 &           & 95.78 &          & 96.87 &           & 96.68 &          & 96.52 &         \\
+ecoli & 85.69 & 85.89 &           & 84.49 &           & 84.52 &          & 86.10 &           & 85.50 &          & 85.12 &         \\
+glass & 79.72 & 78.21 &           & 77.05 &           & 76.72 &          & 79.29 &           & 79.11 &          & 78.42 &         \\
+hayes-roth & 80.94 & 80.25 &           & 80.85 &           & 80.69 &          & 80.54 &           & 81.02 &          & 82.23 &         \\
+heart-statlog & 83.15 & 83.81 &           & 82.89 &           & 82.37 &          & 83.67 &           & 82.85 &          & 82.81 &         \\
+ionosphere & 93.48 & 93.42 &           & 93.42 &           & 93.48 &          & 93.19 &           & 93.31 &          & 93.51 &         \\
+iris & 94.67 & 95.27 &           & 94.87 &           & 94.47 &          & 95.60 &           & 95.40 &          & 95.33 &         \\
+letter & 96.44 & 96.40 &           & 96.63 &           & 96.73 &  $\circ$ & 96.18 & $\bullet$ & 96.62 &          & 96.74 &  $\circ$\\
+liver-disorders & 73.23 & 70.88 &           & 70.75 &           & 70.61 &          & 73.33 &           & 71.62 &          & 71.48 &         \\
+mfeat & 77.53 & 77.99 &           & 78.09 &           & 77.95 &          & 77.46 &           & 77.94 &          & 78.07 &         \\
+optdigits & 98.24 & 98.32 &           & 98.40 &           & 98.46 &  $\circ$ & 98.24 &           & 98.40 &          & 98.41 &         \\
+page-blocks & 97.53 & 97.56 &           & 97.41 &           & 97.39 &          & 97.57 &           & 97.48 &          & 97.44 &         \\
+pendigits & 99.15 & 99.22 &           & 99.26 &   $\circ$ & 99.25 &  $\circ$ & 99.20 &           & 99.24 &          & 99.28 &  $\circ$\\
+phoneme & 91.12 & 91.23 &           & 91.21 &           & 91.23 &          & 91.28 &           & 91.56 &  $\circ$ & 91.55 &         \\
+pima-diabetes & 76.10 & 75.94 &           & 75.50 &           & 75.84 &          & 76.15 &           & 76.29 &          & 76.13 &         \\
+sat & 93.85 & 94.16 &           & 94.26 &   $\circ$ & 94.29 &  $\circ$ & 93.86 &           & 94.18 &          & 94.25 &  $\circ$\\
+segment & 98.14 & 98.18 &           & 98.26 &           & 98.32 &          & 98.15 &           & 98.19 &          & 98.19 &         \\
+shuttle & 99.99 & 99.99 &           & 99.99 &           & 99.99 &          & 99.98 & $\bullet$ & 99.98 &          & 99.98 &         \\
+sonar & 83.10 & 86.16 &           & 86.10 &           & 85.72 &          & 85.01 &           & 86.25 &          & 86.74 &         \\
+spambase & 95.54 & 94.73 & $\bullet$ & 95.38 &           & 95.64 &          & 95.36 &           & 95.58 &          & 95.69 &         \\
+spectf & 91.46 & 91.41 &           & 91.63 &           & 91.32 &          & 91.12 &           & 91.66 &          & 91.60 &         \\
+spectrometer & 88.35 & 88.50 &           & 88.63 &           & 88.40 &          & 88.42 &           & 88.46 &          & 88.55 &         \\
+vehicle & 74.87 & 75.66 &           & 75.16 &           & 75.22 &          & 75.56 &           & 75.15 &          & 75.25 &         \\
+waveform & 85.16 & 84.97 &           & 84.96 &           & 85.05 &          & 85.08 &           & 85.19 &          & 85.12 &         \\
+wine & 97.86 & 97.02 &           & 97.13 &           & 96.96 &          & 97.85 &           & 98.02 &          & 98.08 &         \\
+yeast & 61.45 & 61.20 &           & 59.86 & $\bullet$ & 59.86 &          & 61.71 &           & 60.68 &          & 60.29 &         \\
+\hline
+\multicolumn{14}{c}{$\circ$, $\bullet$ statistically significant improvement or degradation}\\
+\end{tabular} \footnotesize \par}
+\caption{Comparison of results produced using bagging, input smearing and the mixup method}
+\label{compare}
+\end{table}
+
+\paragraph*{}
+
+Of all the methods tested, the input smearing with a sample size multiplier of 3 had the most statistically significant improvements over bagging, with better results for 4 of the 27 datasets. The best performance for the mixup method was also with a sample size multiplier of 3 and had statistically significant improvements for 3 of the 27 datasets. When a sample size multiplier of 1 was used in both cases there appears to be no improvement, for input smearing there is one statistical improvement and one statistical degradation and with the mixup method there is one statistical improvement and two statistical degradations.
+
+\paragraph{}
+
+It should also be noted that due to the number datasets used in the experiments, having a couple of statistically significant results would be expected even if there is no actual difference in the performance. To see if there is a difference in performance when considering all datasets at once a Friedman test followed with a post-hoc analysis based on the Wilcoxon-Holm method was used~\cite{fulltest}. The critical difference diagram produced from this analysis is shown in Figure~\ref{difference}. This diagram shows that none of the methods produce results with a statistically significant difference from bagging.
+
+\begin{figure}
+\includegraphics[width=\linewidth]{cd-diagram.png}
+\caption{Critical difference diagram showing statistically significant difference between all seven methods}
+\label{difference}
+\end{figure}
+
+\paragraph{}
+
+In the original paper on input smearing~\cite{smear} a similar comparison to bagging is performed with an improvement observed for 4 out of 22 datasets. This is a slightly better performance than observed in these experiments but still indicates that input smearing does not result in any large improvements. The original paper on mixup~\cite{mixup} uses the algorithm for a completely different purpose so no comparison of results can be made.
+
+\section{Conclusions}
+
+This report described the implementation of input smearing and mixup as filters for WEKA, two algorithms which create new datasets with virtual training instances based on the original training data. Experiments where then performed with these algorithms by using them as replacements for the bagging process used in random forests. These experiments produced no statistically significant differences in performance over bagging. Further experimentation could possible be performed with hyperparameter tuning for the $\sigma$ and $\alpha$ parameters to give better performance.
+
+\bibliographystyle{plain}
+\bibliography{report}
+
+\end{document}

@@ -2,3 +2,9 @@
 /MLAssignment2.iml
 /out
 /datasets
+MLAssignment1.iml
+/report/*
+!/report/report.tex
+!/report/report.bib
+!/report/centroids.png
+/results
